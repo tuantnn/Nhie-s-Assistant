@@ -570,6 +570,39 @@ const ADV={
     qs:[{id:'budget',l:'Ngân sách',type:'input',ph:'VD: 12000000'},{id:'area',l:'Diện tích phòng',type:'opts',opts:['≤12m² (1HP)','12-20m² (1.5HP)','20-30m² (2HP)','30-40m² (2.5HP)','> 40m²']},{id:'dir',l:'Loại',type:'opts',opts:['1 chiều (chỉ lạnh)','2 chiều (lạnh+sưởi)']}],
     sc(p,a){let s=0;if(p.price<=parseFloat(a.budget||12e6))s+=2;if(a.area){const map={'1HP':'1 HP','1.5HP':'1.5','2HP':'2 HP','2.5HP':'2.5','40m²':'3 HP'};for(const[k,v]of Object.entries(map))if(a.area.includes(k)&&p.spec1&&p.spec1.includes(v))s+=3}if(a.dir&&a.dir.includes('2 chiều')&&p.spec10&&p.spec10.includes('2 chiều'))s+=2;if(a.dir&&a.dir.includes('1 chiều')&&p.spec10&&p.spec10.includes('1 chiều'))s+=1;return s;}
   },
+  '🔥 Máy nước nóng':{
+    qs:[
+      {id:'budget',l:'Ngân sách',type:'input',ph:'VD: 2000000'},
+      {id:'pressure',l:'Áp nước nhà bạn',type:'opts',opts:['Áp mạnh (nhà cao tầng, nước đầy đủ)','Áp yếu (nhỏ giọt, yếu khi dùng nhiều vòi)']},
+      {id:'people',l:'Số người dùng',type:'opts',opts:['1-2 người','3-4 người','5 người trở lên']},
+      {id:'type',l:'Loại máy',type:'opts',opts:['Trực tiếp (gọn, nóng ngay)','Gián tiếp (đun sẵn, tắm lâu không hết nước)','Không biết — tư vấn giúp']},
+    ],
+    sc(p,a){
+      let s=0;
+      const b=parseFloat(a.budget)||2e6;
+      if(p.price<=b)s+=2;else if(p.price<=b*1.2)s+=1;
+      // Áp nước
+      const hasBoost=p.usp&&(p.usp.includes('bơm')||p.usp.includes('bơm tăng áp'));
+      const isGT=p.spec2&&p.spec2.toLowerCase().includes('gián tiếp');
+      const isTT=p.spec2&&p.spec2.toLowerCase().includes('trực tiếp');
+      if(a.pressure&&a.pressure.includes('yếu')&&hasBoost)s+=3;
+      if(a.pressure&&a.pressure.includes('mạnh')&&!hasBoost&&isTT)s+=2;
+      // Số người
+      const vol=parseFloat(String(p.spec7||p.spec9||'0').match(/[\d.]+/)?.[0])||0;
+      if(a.people==='1-2 người'&&(isTT||(isGT&&vol<=20)))s+=2;
+      if(a.people==='3-4 người'&&isGT&&vol>=20&&vol<=30)s+=3;
+      if(a.people==='5 người trở lên'&&isGT&&vol>=30)s+=3;
+      // Loại
+      if(a.type&&a.type.includes('Trực tiếp')&&isTT)s+=2;
+      if(a.type&&a.type.includes('Gián tiếp')&&isGT)s+=2;
+      if(a.type&&a.type.includes('Không biết')){
+        if(a.people==='1-2 người'&&isTT)s+=1;
+        if(a.people==='3-4 người'&&isGT&&vol>=20)s+=1;
+        if(a.people==='5 người trở lên'&&isGT&&vol>=30)s+=1;
+      }
+      return s;
+    }
+  },
   '🌀 Máy giặt':{
     qs:[{id:'budget',l:'Ngân sách',type:'input',ph:'VD: 8000000'},{id:'kg',l:'Số kg cần giặt',type:'opts',opts:['≤7kg','8-10kg','11kg+']},{id:'door',l:'Loại cửa',type:'opts',opts:['Cửa trước','Cửa trên','Không quan trọng']}],
     sc(p,a){let s=0;if(p.price<=parseFloat(a.budget||8e6))s+=2;const kg=parseFloat(String(p.spec7||0).match(/[\d.]+/)?.[0])||0;if(a.kg==='≤7kg'&&kg<=7&&kg>=5)s+=3;if(a.kg==='8-10kg'&&kg>=8&&kg<=10)s+=3;if(a.kg==='11kg+'&&kg>=11)s+=3;if(a.door&&a.door!=='Không quan trọng'&&p.spec2&&p.spec2.includes(a.door))s+=2;return s;}
