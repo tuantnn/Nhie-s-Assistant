@@ -88,8 +88,15 @@ body{font-family:'Be Vietnam Pro',system-ui,-apple-system,sans-serif;background:
 .cc{padding:9px 10px;border-bottom:1px solid var(--bdr);border-right:1px solid var(--bdr);font-size:12px;display:flex;align-items:flex-start;line-height:1.5}
 .clbl{background:var(--sur);font-size:10px;font-weight:600;color:var(--mut);align-items:center}
 .csec{padding:6px 13px;font-size:9px;font-weight:700;color:var(--acc);text-transform:uppercase;letter-spacing:1px;border-bottom:1px solid var(--bdr);background:var(--s2)}
-.cbest{color:var(--grn);font-weight:700}
-.cworst{color:var(--red)}
+/* Compare strength colors: 5 levels, easier to read than a continuous gradient */
+.cbest{color:var(--grn);font-weight:700;background:rgba(16,185,129,.10)}
+.cnear{color:#22c55e;background:rgba(34,197,94,.07)}
+.cslight{color:var(--org);background:rgba(245,158,11,.08)}
+.cmedium{color:#fb923c;background:rgba(251,146,60,.10)}
+.cworst{color:var(--red);background:rgba(239,68,68,.10)}
+.cneutral{color:var(--mut)}
+.chip-note{font-size:10px;line-height:1.55;color:var(--txt)}
+.chip-pill{display:inline-block;padding:2px 7px;border-radius:999px;background:var(--hl);color:var(--acc);font-size:10px;font-weight:700;margin-left:4px}
 .cmt{font-size:11px;line-height:1.5;padding:10px 12px;border-bottom:1px solid var(--bdr);border-right:1px solid var(--bdr)}
 .cmt.winner{background:rgba(16,185,129,.08);font-weight:600;color:var(--grn)}
 .cempty-tbl{padding:36px;text-align:center;color:var(--mut)}
@@ -352,7 +359,10 @@ const FIELDS={
   '🍽️ Máy rửa chén':[{k:'spec1',l:'Công suất(W)'},{k:'spec2',l:'Chương trình'},{k:'spec9',l:'Số bộ bát'},{k:'spec10',l:'Loại'}],
 };
 function gf(cat){for(const k of Object.keys(FIELDS))if(nc(k)===nc(cat))return FIELDS[k];return[{k:'spec1',l:'T.số 1'},{k:'spec2',l:'T.số 2'}]}
-const LB=new Set(['Điện(kWh)','Sạc(W)']);
+// Lower-is-better only for fields like power consumption. Charging wattage is higher-is-better.
+const LB=new Set(['Điện(kWh)']);
+const HB=new Set(['Sạc(W)','Pin(mAh)','Cam(MP)','Selfie(MP)','Màn hình','RAM(GB)','ROM(GB)','Size(inch)','Dung tích(L)','KL giặt(kg)','HP','BTU','Lực hút(Pa)','Diện tích(m²)','Số bộ bát','Công suất(W)']);
+const NEUTRAL_COMPARE=new Set(['CPU/Chip','Kết nối']);
 
 // ── STATE ──────────────────────────────────────────
 let slots=[null,null,null];
@@ -456,13 +466,176 @@ function numA(vals){
   return ns.map(n=>n===null?null:{mx:n===mx,mn:n===mn});
 }
 
+
+// ── CHIP QUICK DATA / COMPARE COLORS ──────────────
+// Data đơn giản để tra cứu: tier càng thấp càng mạnh; score càng cao càng tốt.
+// Có thể bổ sung chip mới bằng cách thêm 1 dòng trong CHIP_DB, không cần sửa layout.
+// Quy ước:
+// - n: tên chuẩn để hiển thị trong block so sánh chip.
+// - aliases: tên trong data sản phẩm / tên marketing OEM sẽ map về chip chuẩn.
+// - tier: số càng nhỏ càng cao.
+// - perf/gpu/eff: điểm tương đối 0-100 để tô màu. Không phải điểm benchmark tuyệt đối.
+// - confidence: high = tên/nhóm chip đã rõ; medium = tên OEM/marketing hoặc ước lượng theo chip gốc; low = chip 2026/speculative trong data cần kiểm tra lại.
+const CHIP_DB=[
+  {n:'Apple A19 Pro', aliases:['A19 Pro','Apple A19 Pro'], eco:'ios', tier:1, perf:100, gpu:99, eff:96, confidence:'low', note:'Chip Apple: tư vấn trong hệ sinh thái iPhone; không so trực diện bằng điểm kỹ thuật với Android.'},
+  {n:'Apple A19', aliases:['A19','Apple A19'], eco:'ios', tier:2, perf:93, gpu:88, eff:95, confidence:'low', note:'Chip Apple non-Pro: ưu tiên iOS, video, app và độ ổn định; không so trực diện với Android.'},
+  {n:'Apple A18 Pro', aliases:['A18 Pro','Apple A18 Pro'], eco:'ios', tier:2, perf:93, gpu:92, eff:94, confidence:'high', note:'Chip Apple: mạnh trong iOS, video/app rất tốt; chỉ nên so kỹ thuật với các iPhone khác.'},
+  {n:'Apple A18', aliases:['A18','Apple A18'], eco:'ios', tier:3, perf:88, gpu:84, eff:93, confidence:'high', note:'Chip Apple non-Pro 2024; tối ưu tốt trong iOS, không dùng để chấm thắng/thua trực tiếp với Android.'},
+  {n:'Apple A16 Bionic', aliases:['A16 Bionic','Apple A16 Bionic'], eco:'ios', tier:4, perf:78, gpu:75, eff:86, confidence:'high', note:'Chip Apple cũ nhưng vẫn mượt nhờ iOS; so trong nhóm iPhone là chính.'},
+  {n:'Apple A15 Bionic', aliases:['Apple A15 Bionic','A15 Bionic'], eco:'ios', tier:4, perf:72, gpu:70, eff:83, confidence:'high', note:'Vẫn ổn cho iPhone cũ; tư vấn theo iOS/app/camera/video hơn là điểm Android.'},
+
+  {n:'Snapdragon 8 Elite Gen 5', aliases:['Snapdragon 8 Elite Gen 5','8 Elite Gen 5'], eco:'android', tier:1, perf:99, gpu:99, eff:94, confidence:'high', note:'Flagship Android đầu bảng; lực CPU/GPU rất cao, thường nhỉnh Dimensity 9500 về hiệu năng thô.'},
+  {n:'Dimensity 9500', aliases:['Dimensity 9500'], eco:'android', tier:1, perf:97, gpu:98, eff:96, confidence:'high', note:'Flagship MediaTek mới; rất mạnh, cân bằng tốt pin/nhiệt, trên 9500s.'},
+  {n:'Dimensity 9500s', aliases:['Dimensity 9500s','9500s'], eco:'android', tier:2, perf:92, gpu:88, eff:93, confidence:'high', note:'Bản thấp hơn Dimensity 9500; vẫn flagship mạnh nhưng không ngang 9500.'},
+  {n:'Snapdragon 8 Elite', aliases:['Snapdragon 8 Elite','8 Elite'], eco:'android', tier:2, perf:94, gpu:95, eff:90, confidence:'high', note:'Flagship Android 2025; rất mạnh, dưới Elite Gen 5 nhưng vẫn dư lực.'},
+  {n:'Exynos 2500', aliases:['Exynos 2500'], eco:'android', tier:2, perf:90, gpu:88, eff:86, confidence:'medium', note:'Flagship Samsung/Exynos trong data; xếp thận trọng dưới nhóm Elite/9500.'},
+  {n:'Dimensity 9400', aliases:['Dimensity 9400'], eco:'android', tier:2, perf:92, gpu:92, eff:91, confidence:'high', note:'Flagship MediaTek 2025; cân bằng tốt, dưới 9500 nhưng vẫn rất mạnh.'},
+  {n:'Dimensity 9300+', aliases:['Dimensity 9300+'], eco:'android', tier:3, perf:89, gpu:89, eff:86, confidence:'high', note:'Flagship/cận flagship cũ, hiệu năng cao; lưu ý nhiệt theo từng máy.'},
+  {n:'Snapdragon 8s Elite', aliases:['Snapdragon 8s Elite'], eco:'android', tier:3, perf:87, gpu:86, eff:88, confidence:'medium', note:'Tên trong data dạng cận flagship; xếp dưới Snapdragon 8 Elite.'},
+  {n:'Dimensity 9200+', aliases:['Dimensity 9200+'], eco:'android', tier:3, perf:84, gpu:84, eff:82, confidence:'high', note:'Flagship cũ, vẫn khỏe nhưng kém nhóm 9300/9400.'},
+  {n:'Dimensity 9200', aliases:['Dimensity 9200'], eco:'android', tier:3, perf:82, gpu:82, eff:81, confidence:'high', note:'Flagship cũ, hiệu năng tốt nhưng không còn top.'},
+
+  {n:'Dimensity 8500-Ultra', aliases:['Dimensity 8500-Ultra','Dimensity 8500 Ultra'], eco:'android', tier:3, perf:83, gpu:82, eff:90, confidence:'medium', marketing:true, base:'Dimensity 8500', note:'Tên Xiaomi/Redmi dùng cho sản phẩm; giữ đúng tên Ultra vì là yếu tố marketing. Xếp theo nhóm 8500: mạnh tầm trung cao, tiết kiệm điện.'},
+  {n:'Dimensity 8500', aliases:['Dimensity 8500'], eco:'android', tier:3, perf:83, gpu:82, eff:90, confidence:'medium', note:'Nhóm 8500: mạnh tầm trung cao/cận flagship, ưu tiên hiệu năng/điện năng.'},
+  {n:'Dimensity 8450', aliases:['Dimensity 8450'], eco:'android', tier:3, perf:79, gpu:77, eff:87, confidence:'medium', note:'Tầm trung cao/cận cao, ưu tiên cân bằng pin và hiệu năng.'},
+  {n:'Dimensity 8350-Ultra', aliases:['Dimensity 8350-Ultra','Dimensity 8350 Ultra'], eco:'android', tier:4, perf:76, gpu:74, eff:85, confidence:'medium', marketing:true, base:'Dimensity 8350', note:'Tên Xiaomi/Redmi/OEM dùng cho sản phẩm; giữ tên Ultra để tư vấn marketing, xếp gần Dimensity 8350.'},
+  {n:'Dimensity 8350', aliases:['Dimensity 8350'], eco:'android', tier:4, perf:76, gpu:74, eff:85, confidence:'medium', note:'Tầm trung cao, cân bằng hiệu năng và pin.'},
+  {n:'Snapdragon 7 Gen 3', aliases:['Snapdragon 7 Gen 3'], eco:'android', tier:4, perf:72, gpu:70, eff:83, confidence:'high', note:'Tầm trung cân bằng, dùng hằng ngày và game vừa ổn.'},
+  {n:'Snapdragon 7s Gen 3', aliases:['Snapdragon 7s Gen 3'], eco:'android', tier:4, perf:70, gpu:67, eff:83, confidence:'high', note:'Tầm trung mới, ưu tiên cân bằng và pin hơn game nặng.'},
+  {n:'Dimensity 7400-Ultra', aliases:['Dimensity 7400-Ultra','Dimensity 7400 Ultra'], eco:'android', tier:4, perf:70, gpu:66, eff:83, confidence:'medium', marketing:true, base:'Dimensity 7400', note:'Tên Xiaomi/Redmi dùng cho sản phẩm; giữ đúng tên Ultra vì có giá trị marketing. Hiệu năng xếp gần Dimensity 7400.'},
+  {n:'Dimensity 7400', aliases:['Dimensity 7400'], eco:'android', tier:4, perf:70, gpu:66, eff:83, confidence:'medium', note:'Tầm trung cao/5G, dùng ổn; không phải flagship.'},
+  {n:'Dimensity 7300', aliases:['Dimensity 7300'], eco:'android', tier:4, perf:68, gpu:64, eff:82, confidence:'high', note:'Tầm trung tiết kiệm điện, hợp máy mỏng/pin; không phải chip gaming nặng.'},
+  {n:'Dimensity 7030', aliases:['Dimensity 7030'], eco:'android', tier:5, perf:60, gpu:55, eff:76, confidence:'high', note:'5G phổ thông/cận trung, dùng ổn nhu cầu hằng ngày.'},
+  {n:'Dimensity 7025', aliases:['Dimensity 7025'], eco:'android', tier:5, perf:58, gpu:53, eff:75, confidence:'high', note:'5G phổ thông, đủ dùng cơ bản, không ưu tiên game nặng.'},
+  {n:'Snapdragon 6 Gen 1', aliases:['Snapdragon 6 Gen 1'], eco:'android', tier:5, perf:58, gpu:55, eff:77, confidence:'high', note:'5G phổ thông/tầm trung thấp, pin ổn.'},
+  {n:'Snapdragon 7s Gen 2', aliases:['Snapdragon 7s Gen 2'], eco:'android', tier:5, perf:57, gpu:53, eff:77, confidence:'high', note:'Tầm trung thấp/cũ hơn 7s Gen 3; dùng ổn nhưng game không mạnh.'},
+  {n:'Dimensity 6300', aliases:['Dimensity 6300'], eco:'android', tier:5, perf:53, gpu:49, eff:75, confidence:'high', note:'5G phổ thông, ưu tiên giá và pin.'},
+  {n:'Dimensity 6100+', aliases:['Dimensity 6100+'], eco:'android', tier:5, perf:50, gpu:47, eff:74, confidence:'high', note:'5G phổ thông đời cũ hơn 6300.'},
+  {n:'Unisoc T760', aliases:['Unisoc T760'], eco:'android', tier:5, perf:49, gpu:45, eff:72, confidence:'medium', note:'5G phổ thông; xếp thận trọng do tối ưu tùy máy.'},
+  {n:'Helio G200-Ultra', aliases:['Helio G200-Ultra','Helio G200 Ultra'], eco:'android', tier:5, perf:52, gpu:47, eff:69, confidence:'medium', marketing:true, base:'Helio G200', note:'Tên Xiaomi/Redmi dùng cho sản phẩm; giữ tên Ultra để tư vấn marketing. Vẫn là nhóm Helio G 4G, không phải 5G.'},
+  {n:'Helio G200', aliases:['Helio G200'], eco:'android', tier:5, perf:52, gpu:47, eff:69, confidence:'medium', note:'Helio G 4G phổ thông/cận trung; không phù hợp nếu khách cần 5G.'},
+  {n:'Helio G100', aliases:['Helio G100'], eco:'android', tier:5, perf:50, gpu:45, eff:68, confidence:'medium', note:'4G phổ thông mới, dùng cơ bản; không phù hợp nếu khách cần 5G.'},
+  {n:'Helio G99 Ultra', aliases:['Helio G99 Ultra','G99 Ultra'], eco:'android', tier:5, perf:49, gpu:44, eff:68, confidence:'medium', marketing:true, base:'Helio G99', note:'Tên marketing/OEM trên một số máy Xiaomi/Redmi; giữ đúng tên để tư vấn sản phẩm. Vẫn thuộc nhóm Helio G 4G.'},
+  {n:'Helio G99', aliases:['Helio G99'], eco:'android', tier:5, perf:48, gpu:43, eff:68, confidence:'high', note:'Helio G99 4G phổ thông/cận trung; không xếp như 5G.'},
+  {n:'Snapdragon 4 Gen 2', aliases:['Snapdragon 4 Gen 2'], eco:'android', tier:6, perf:47, gpu:42, eff:73, confidence:'high', note:'5G phổ thông, tiết kiệm điện, hiệu năng vừa đủ.'},
+  {n:'Exynos 1680', aliases:['Exynos 1680'], eco:'android', tier:5, perf:65, gpu:62, eff:78, confidence:'low', note:'Chip 2026/speculative trong data; cần xác minh máy thực tế.'},
+  {n:'Exynos 1580', aliases:['Exynos 1580'], eco:'android', tier:5, perf:62, gpu:60, eff:77, confidence:'medium', note:'Tầm trung Samsung, ổn cho nhu cầu phổ thông/cận cao.'},
+  {n:'Exynos 1480', aliases:['Exynos 1480'], eco:'android', tier:5, perf:58, gpu:57, eff:75, confidence:'high', note:'Tầm trung Samsung, GPU khá trong phân khúc.'},
+  {n:'Exynos 1380', aliases:['Exynos 1380'], eco:'android', tier:5, perf:54, gpu:49, eff:70, confidence:'high', note:'Tầm trung cũ, đủ dùng nhưng không nổi bật game.'},
+  {n:'Exynos 1330', aliases:['Exynos 1330'], eco:'android', tier:6, perf:47, gpu:42, eff:69, confidence:'high', note:'5G phổ thông Samsung.'},
+  {n:'Exynos 1280', aliases:['Exynos 1280'], eco:'android', tier:6, perf:45, gpu:40, eff:67, confidence:'high', note:'Tầm trung cũ, dùng cơ bản.'},
+  {n:'Exynos 850', aliases:['Exynos 850'], eco:'android', tier:7, perf:25, gpu:18, eff:55, confidence:'high', note:'Chip rất cũ/yếu, chỉ phù hợp nhu cầu nhẹ.'},
+  {n:'Snapdragon 680', aliases:['Snapdragon 680'], eco:'android', tier:6, perf:35, gpu:29, eff:64, confidence:'high', note:'4G phổ thông cũ, dùng cơ bản, không hợp game nặng.'},
+  {n:'Helio G91', aliases:['Helio G91'], eco:'android', tier:6, perf:38, gpu:32, eff:60, confidence:'medium', note:'4G phổ thông; về bản chất gần nhóm G88/G85, không phải chip mạnh.'},
+  {n:'Helio G88', aliases:['Helio G88'], eco:'android', tier:6, perf:36, gpu:31, eff:59, confidence:'high', note:'4G phổ thông cũ, dùng nhẹ.'},
+  {n:'Helio G85', aliases:['Helio G85'], eco:'android', tier:6, perf:35, gpu:30, eff:58, confidence:'high', note:'4G phổ thông cũ.'},
+  {n:'Helio G83', aliases:['Helio G83'], eco:'android', tier:6, perf:34, gpu:29, eff:58, confidence:'medium', note:'Tên/biến thể phổ thông trong data; xếp gần G85.'},
+  {n:'Helio G81', aliases:['Helio G81'], eco:'android', tier:6, perf:33, gpu:28, eff:58, confidence:'medium', note:'4G phổ thông, chỉ nên tư vấn nhu cầu nhẹ.'},
+  {n:'Helio G36', aliases:['Helio G36'], eco:'android', tier:7, perf:24, gpu:18, eff:52, confidence:'high', note:'Chip giá rẻ, chỉ dùng cơ bản.'},
+  {n:'Unisoc T612', aliases:['Unisoc T612'], eco:'android', tier:7, perf:23, gpu:18, eff:52, confidence:'high', note:'Chip phổ thông giá rẻ, dùng nhẹ.'},
+  {n:'Kirin 9020', aliases:['Kirin 9020'], eco:'android', tier:3, perf:84, gpu:80, eff:83, confidence:'medium', note:'Flagship Huawei trong data; xếp thận trọng do hệ sinh thái/nguồn benchmark hạn chế.'}
+];
+const CHIP_ALIAS=[];
+CHIP_DB.forEach(c=>{
+  const names=[c.n].concat(c.aliases||[]);
+  names.forEach(a=>CHIP_ALIAS.push({key:normChip(a),chip:c,raw:a}));
+});
+CHIP_ALIAS.sort((a,b)=>b.key.length-a.key.length);
+function normChip(s){
+  return String(s||'').toLowerCase()
+    .normalize('NFD').replace(/[\u0300-\u036f]/g,'')
+    .replace(/apple\s+/g,'')
+    .replace(/qualcomm\s+/g,'')
+    .replace(/mediatek\s+/g,'')
+    .replace(/[®™]/g,'')
+    .replace(/[^a-z0-9+]+/g,'')
+    .trim();
+}
+function chipInfo(name){
+  const h=normChip(name);
+  if(!h)return null;
+  let found=CHIP_ALIAS.find(a=>h===a.key);
+  if(found)return found.chip;
+  found=CHIP_ALIAS.find(a=>h.includes(a.key)||a.key.includes(h));
+  return found?found.chip:null;
+}
+function chipEcoMixed(chips){
+  const ecos=[...new Set(chips.filter(Boolean).map(c=>c.eco||'android'))];
+  return ecos.length>1;
+}
+function chipCompareAllowed(chips){
+  return !chipEcoMixed(chips);
+}
+function compDir(label){
+  if(LB.has(label))return 'lower';
+  if(HB.has(label))return 'higher';
+  return 'higher';
+}
+function scoreClass(value,best,worst,dir='higher',kind='normal'){
+  const v=parseFloat(value),b=parseFloat(best),w=parseFloat(worst);
+  if([v,b,w].some(Number.isNaN)||b===w)return '';
+  const range=Math.abs(b-w)||1;
+  const dist=dir==='lower'?v-b:b-v;
+  const ratio=dist/range;
+  if(dist<=0)return 'cbest';
+  const near=kind==='eff'?0.22:0.18;
+  const slight=kind==='eff'?0.45:0.38;
+  const medium=kind==='eff'?0.72:0.68;
+  if(ratio<=near)return 'cnear';
+  if(ratio<=slight)return 'cslight';
+  if(ratio<=medium)return 'cmedium';
+  return 'cworst';
+}
+function compClasses(vals,label,kind='normal'){
+  // Các dòng chữ có số trong tên (VD: Snapdragon 8 Elite, Dimensity 9500) không được so số thô.
+  // Chip đã có block so sánh riêng bên dưới, nên dòng CPU/Chip để màu trung tính.
+  if(NEUTRAL_COMPARE.has(label))return vals.map(()=>'' );
+  const ns=vals.map(v=>{const m=String(v||'').match(/[\d.]+/);return m?parseFloat(m[0]):null});
+  const vd=ns.filter(n=>n!==null);
+  if(vd.length<2)return ns.map(()=>'' );
+  const dir=compDir(label);
+  const best=dir==='lower'?Math.min(...vd):Math.max(...vd);
+  const worst=dir==='lower'?Math.max(...vd):Math.min(...vd);
+  return ns.map(n=>n===null?'':scoreClass(n,best,worst,dir,kind));
+}
+function tierText(t){return t?'Tier '+t:'—'}
+function chipVerdict(chips){
+  const known=chips.filter(Boolean);
+  if(known.length<2)return 'Chưa đủ dữ liệu chip để kết luận.';
+  if(chipEcoMixed(known)){
+    return 'Có iPhone/Apple trong nhóm so sánh: không chấm thắng-thua kỹ thuật trực diện với Android. Tư vấn theo hệ sinh thái, camera/video, app, pin và giá máy.';
+  }
+  const top=[...known].sort((a,b)=>b.perf-a.perf)[0];
+  const gpu=[...known].sort((a,b)=>b.gpu-a.gpu)[0];
+  const eff=[...known].sort((a,b)=>b.eff-a.eff)[0];
+  const second=[...known].sort((a,b)=>b.perf-a.perf)[1];
+  const diff=second?top.perf-second.perf:0;
+  let level=diff<=3?'nhỉnh nhẹ':diff<=8?'mạnh hơn':'mạnh hơn rõ';
+  let msg=top.n+' '+level+' về hiệu năng tổng trong nhóm đang so.';
+  if(gpu.n!==top.n)msg+=' '+gpu.n+' nhỉnh hơn về GPU/game.';
+  if(eff.n!==top.n)msg+=' '+eff.n+' có lợi thế tối ưu năng lượng/nhiệt.';
+  if(known.some(c=>c.marketing))msg+=' Các tên Ultra của Xiaomi/Redmi được giữ theo tên marketing sản phẩm, không tự hạ về tên chip gốc khi hiển thị.';
+  if(known.some(c=>c.confidence==='low'))msg+=' Có chip đang đánh dấu cần kiểm tra nên không nên chốt tuyệt đối.';
+  return msg;
+}
+
 function genVerdict(filled,fields){
   const sc=filled.map(()=>0);
   fields.forEach(f=>{
+    if(NEUTRAL_COMPARE.has(f.l))return; // tránh lấy số trong tên chip/kết nối để chấm điểm tổng
     const vs=filled.map(p=>p[f.k]||'—');
     const an=numA(vs);const lb=LB.has(f.l);
     an.forEach((a,i)=>{if(!a)return;if(lb){if(a.mn)sc[i]+=1;if(a.mx)sc[i]-=.5}else{if(a.mx)sc[i]+=1;if(a.mn)sc[i]-=.5}});
   });
+  // Điện thoại: cộng điểm chip bằng data chuẩn thay vì parse số từ tên chip
+  if(filled[0]&&nc(filled[0].cat)===nc('📱 Điện thoại')){
+    const chips=filled.map(p=>chipInfo(p.spec2));
+    const perfs=chips.map(c=>c?c.perf:null).filter(v=>v!==null);
+    if(perfs.length>=2 && chipCompareAllowed(chips)){
+      const mxPerf=Math.max(...perfs);
+      chips.forEach((c,i)=>{if(!c)return; sc[i]+= c.perf===mxPerf ? 1 : (mxPerf-c.perf<=3 ? .35 : -.35);});
+    }
+  }
   const prices=filled.map(p=>p.price);
   const mnP=Math.min(...prices),mxP=Math.max(...prices);
   filled.forEach((p,i)=>{if(p.price===mnP&&mnP!==mxP)sc[i]+=.5});
@@ -517,13 +690,41 @@ function renderTable(){
   flds.forEach(fd=>{
     h+='<div class="cc clbl">'+fd.l+'</div>';
     const vs=f.map(p=>p[fd.k]||'—');
-    const an=numA(vs);const lb=LB.has(fd.l);
+    const cls=compClasses(vs,fd.l);
     vs.forEach((v,i)=>{
-      const a=an[i];let cls='';
-      if(a)cls=lb?(a.mn?'cbest':a.mx?'cworst':''):(a.mx?'cbest':a.mn?'cworst':'');
-      h+='<div class="cc '+cls+'">'+esc(v)+'</div>';
+      h+='<div class="cc '+cls[i]+'">'+esc(v)+'</div>';
     });
   });
+  if(nc(cat)===nc('📱 Điện thoại')){
+    const chips=f.map(p=>chipInfo(p.spec2));
+    const rows=[
+      {l:'Tên chip tư vấn',vals:chips.map((c,i)=>c?c.n:(f[i].spec2||'—')),kind:'text'},
+      {l:'Trạng thái data',vals:chips.map(c=>c?((c.marketing?'marketing Xiaomi/Redmi · ':'')+(({high:'cao',medium:'trung bình',low:'cần kiểm tra'})[c.confidence]||c.confidence)):'chưa có'),kind:'text'},
+      {l:'Xếp hạng chip',vals:chips.map(c=>c?tierText(c.tier):'—'),kind:'tier',dir:'lower'},
+      {l:'Hiệu năng chip',vals:chips.map(c=>c?c.perf:'—'),kind:'normal'},
+      {l:'GPU/game',vals:chips.map(c=>c?c.gpu:'—'),kind:'normal'},
+      {l:'Tối ưu năng lượng',vals:chips.map(c=>c?c.eff:'—'),kind:'eff'},
+      {l:'Ghi chú chip',vals:chips.map(c=>c?c.note:'Chưa có data chip; để trung tính, không phán mạnh/yếu.')}
+    ];
+    h+='<div class="csec" style="grid-column:1/-1">So sánh chip trực tiếp <span class="chip-pill">audit v3</span></div>';
+    rows.forEach(r=>{
+      h+='<div class="cc clbl">'+r.l+'</div>';
+      let cls=f.map(()=>'' );
+      if(chipCompareAllowed(chips)){
+        if(r.kind==='tier'){
+          const nums=r.vals.map(v=>String(v).match(/\d+/)?.[0]||null).map(v=>v?parseFloat(v):null);
+          const vd=nums.filter(n=>n!==null);
+          if(vd.length>=2){const best=Math.min(...vd),worst=Math.max(...vd);cls=nums.map(n=>n===null?'':scoreClass(n,best,worst,'lower'))}
+        }else if(r.kind==='normal'||r.kind==='eff'){
+          cls=compClasses(r.vals,'ChipScore',r.kind);
+        }
+      }
+      r.vals.forEach((v,i)=>h+='<div class="cc '+cls[i]+' '+(r.l==='Ghi chú chip'?'chip-note':'')+'">'+esc(v)+'</div>');
+    });
+    h+='<div class="cc clbl" style="color:var(--acc)">Kết luận chip</div>';
+    const cv=chipVerdict(chips);
+    f.forEach(()=>h+='<div class="cmt winner">'+esc(cv)+'</div>');
+  }
   h+='<div class="csec" style="grid-column:1/-1">Điểm nổi bật</div>';
   h+='<div class="cc clbl">USP</div>';
   f.forEach(p=>{h+='<div class="cc" style="font-size:10px;line-height:1.5">'+esc(p.usp||'—')+'</div>'});
@@ -1175,7 +1376,7 @@ Cửa trên: giá rẻ hơn, giặt nhanh hơn, thêm quần áo giữa chừng 
 <tr><td>Mid-range</td><td>Snapdragon 7s Gen 3 / Dimensity 7300-7400</td><td>Redmi Note, vivo V, OPPO Reno tầm trung</td><td>Dùng hàng ngày tốt, game vừa</td></tr>
 <tr><td>Entry</td><td>Helio G99/G200, Dimensity 6300/7025, Snapdragon 4 series</td><td>Các máy entry/mid thấp</td><td>Helio G là 4G; muốn 5G phải kiểm tra lại chip</td></tr>
 </tbody></table>`},
-    {t:`LƯU Ý CHIP`,c:`<div class="kbn" style="padding-left:8px">• Không dùng AnTuTu làm kết luận tuyệt đối: điểm thay đổi theo bản benchmark, tản nhiệt, RAM/bộ nhớ và firmware</div><div class="kbn" style="padding-left:8px">• Snapdragon 8 Elite Gen 5 là thế hệ flagship Android 2025/2026; Snapdragon 8 Elite là đời trước</div><div class="kbn" style="padding-left:8px">• Dimensity 9500 là flagship 2025/2026, không xếp dưới Snapdragon 8s; Find X9 Pro dùng Dimensity 9500</div><div class="kbn" style="padding-left:8px">• Apple A19/A19 Pro tư vấn theo hệ sinh thái, video, độ ổn định và app; không so trực diện bằng điểm Android</div><div class="kbn" style="padding-left:8px">• Helio G series = 4G, không có 5G</div>`},
+    {t:`LƯU Ý CHIP`,c:`<div class="kbn" style="padding-left:8px">• Không dùng AnTuTu làm kết luận tuyệt đối: điểm thay đổi theo bản benchmark, tản nhiệt, RAM/bộ nhớ và firmware</div><div class="kbn" style="padding-left:8px">• Snapdragon 8 Elite Gen 5 là thế hệ flagship Android 2025/2026; Snapdragon 8 Elite là đời trước</div><div class="kbn" style="padding-left:8px">• Dimensity 9500 là flagship 2025/2026, không xếp dưới Snapdragon 8s; Find X9 Pro dùng Dimensity 9500</div><div class="kbn" style="padding-left:8px">• Apple A-series tư vấn theo hệ sinh thái, video, độ ổn định và app; không tô thắng/thua kỹ thuật trực diện với Android</div><div class="kbn" style="padding-left:8px">• Các tên Ultra trên Xiaomi/Redmi được giữ đúng tên marketing sản phẩm; điểm xếp hạng vẫn theo nhóm chip nền để tránh thổi quá tay</div><div class="kbn" style="padding-left:8px">• Helio G series = 4G, không có 5G</div>`},
     {t:`❌ SAI LẦM PHỔ BIẾN NHẤT`,c:`<div class="kbn"><b>&quot;Camera 200MP thì chụp đẹp hơn 50MP&quot; — SAI HOÀN TOÀN</b></div>`},
     {t:`📐 CẢM BIẾN (SENSOR SIZE) — QUAN TRỌNG NHẤT`,c:`<div class="kbn"><b>Quy tắc đọc:</b> Cảm biến lớn giúp thu sáng và giữ chi tiết tốt hơn, đặc biệt trong thiếu sáng. Nhưng nó chỉ là một phần của camera: thuật toán xử lý, khẩu độ, OIS, ISP/HDR, tiêu cự, lens và tuning màu mới quyết định kết quả cuối.</div><table class="kbt"><thead><tr><th>Kích thước / nhóm</th><th>Máy đại diện</th><th>Thiếu sáng / chi tiết</th><th>Ghi chú</th></tr></thead><tbody><tr><td><b>1-inch type</b></td><td>Xiaomi 17 Ultra, Xiaomi 15 Ultra, Xiaomi 14 Ultra</td><td>Xuất sắc</td><td>Dòng Leica chính hãng; lợi thế phần cứng rất lớn nhưng vẫn phụ thuộc thuật toán</td></tr><tr><td><b>1/1.12&quot;</b></td><td>OPPO Find X9 Ultra, vivo X300 Ultra</td><td>Xuất sắc</td><td>Sony LYTIA 901 main — flagship camera mới</td></tr><tr><td><b>1/1.28&quot; class</b></td><td>OPPO Find X9 Pro, Xiaomi 17 Pro Max, iPhone 17 Pro Max</td><td>Rất tốt</td><td>Find X9 Pro dùng Sony LYT-828 main; nhóm này phụ thuộc nhiều vào thuật toán/ISP/chống rung</td></tr><tr><td><b>~1/1.3&quot;–1/1.31&quot;</b></td><td>Samsung S25 Ultra, Xiaomi 17T Pro</td><td>Rất tốt</td><td>Xiaomi 17T Pro: Light Fusion 950 1/1.31&quot; f/1.67 OIS; không xếp cùng tier phần cứng camera Ultra</td></tr><tr><td><b>1/1.4&quot;–1/1.56&quot;</b></td><td>Tele lớn / flagship tiêu chuẩn / upper flagship</td><td>Tốt</td><td>Xem riêng khẩu độ, OIS, tiêu cự và thuật toán zoom</td></tr><tr><td><b>1/2&quot;</b></td><td>Mid-range cao / camera phụ tốt</td><td>Khá</td><td>Đủ dùng khi đủ sáng, tối phụ thuộc xử lý</td></tr><tr><td><b>1/2.5&quot; trở xuống</b></td><td>Mid-range phổ thông, entry-level, camera phụ</td><td>Trung bình / Kém</td><td>Dễ noise, chủ yếu dùng tốt ban ngày</td></tr></tbody></table>`},
     {t:`💡 QUY TẮC ĐỌC: Cảm biến lớn là lợi thế, không phải kết luận tuyệt đối`,c:`<div class="kbn"><b>1-inch type &gt; 1/1.12&quot; &gt; 1/1.28&quot; class &gt; ~1/1.3&quot; &gt; 1/1.56&quot; &gt; 1/2&quot;</b></div><div class="kbn">Cùng thế hệ công nghệ, cảm biến lớn thường tốt hơn về thu sáng, chi tiết và thiếu sáng. Tuy nhiên ảnh cuối cùng còn phụ thuộc thuật toán, lens, khẩu độ, OIS, ISP/HDR, tiêu cự và tuning màu. Không dùng size cảm biến làm tiêu chí thắng tuyệt đối.</div>`},
