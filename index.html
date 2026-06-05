@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black">
-<title>Trợ Lý Của Nhie</title>
+<title>Trợ Lý Của Nhie — UX v5</title>
 <link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
 <style>
 :root{
@@ -163,6 +163,25 @@ body{font-family:'Be Vietnam Pro',system-ui,-apple-system,sans-serif;background:
 
 .empty{text-align:center;padding:44px 20px;color:var(--mut);grid-column:1/-1}
 .empty .ico{font-size:38px;margin-bottom:9px}
+
+
+/* UX patch v4: tránh chạm nhầm khi lướt + xóa nhanh sản phẩm đã chọn */
+.card{touch-action:pan-y;}
+.card-actions{display:flex;gap:6px;margin-top:10px;border-top:1px solid var(--bdr);padding-top:9px}
+.card-pick-btn{width:100%;padding:8px 10px;border-radius:9px;border:1px solid var(--bdr);background:var(--s2);color:var(--txt);font-size:11px;font-weight:700;font-family:inherit;cursor:pointer;-webkit-appearance:none;touch-action:manipulation}
+.card-pick-btn.add{border-color:var(--acc);background:var(--hl);color:var(--acc)}
+.card-pick-btn.remove{border-color:rgba(239,68,68,.45);background:rgba(239,68,68,.10);color:#f87171}
+.quickbar{position:fixed;left:10px;right:10px;bottom:10px;background:rgba(19,19,26,.96);border:1px solid var(--bdr);border-radius:16px;padding:10px;z-index:450;box-shadow:0 14px 45px rgba(0,0,0,.55);display:none;backdrop-filter:blur(12px)}
+.quickbar.on{display:block}
+.qb-top{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:8px}
+.qb-title{font-size:11px;font-weight:800;color:var(--acc);text-transform:uppercase;letter-spacing:.04em}
+.qb-clear{border:none;background:transparent;color:var(--red);font-size:11px;font-weight:800;font-family:inherit;cursor:pointer;padding:6px;-webkit-appearance:none}
+.qb-list{display:flex;gap:7px;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none}
+.qb-list::-webkit-scrollbar{display:none}
+.qb-item{display:flex;align-items:center;gap:7px;min-width:150px;max-width:210px;background:var(--s2);border:1px solid var(--bdr);border-radius:11px;padding:8px 8px 8px 10px}
+.qb-name{min-width:0;flex:1;font-size:11px;font-weight:700;line-height:1.25;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.qb-x{width:24px;height:24px;border-radius:8px;border:1px solid rgba(239,68,68,.35);background:rgba(239,68,68,.10);color:#f87171;font-size:14px;font-weight:900;line-height:1;cursor:pointer;-webkit-appearance:none;flex:0 0 auto}
+@media(max-width:768px){body{padding-bottom:86px}.card{cursor:default}.card-pick-btn{padding:9px 10px;font-size:11px}.quickbar{bottom:8px;left:8px;right:8px}.toast{bottom:94px}}
 
 .toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(20px);background:var(--grn);color:#fff;padding:10px 20px;border-radius:24px;font-size:13px;font-weight:600;z-index:999;opacity:0;transition:opacity .25s,transform .25s;pointer-events:none;white-space:nowrap}
 .toast.on{opacity:1;transform:translateX(-50%) translateY(0)}
@@ -330,6 +349,12 @@ body{font-family:'Be Vietnam Pro',system-ui,-apple-system,sans-serif;background:
   <div id="kb-body"></div>
 </div>
 
+
+<div class="quickbar" id="quickbar">
+  <div class="qb-top"><div class="qb-title" id="qb-title">Đang so sánh 0/3</div><button class="qb-clear" id="qb-clear">Xóa hết</button></div>
+  <div class="qb-list" id="qb-list"></div>
+</div>
+
 <div class="toast" id="toast"></div>
 
 <script>
@@ -438,6 +463,24 @@ function syncUI(){
   [0,1,2].forEach(i=>{const d=document.getElementById('d'+i);if(d)d.classList.toggle('on',!!slots[i])});
   const lbl=document.getElementById('dlbl');if(lbl)lbl.textContent=n+'/3';
   document.getElementById('actrow').classList.toggle('on',n>0);
+  renderQuickbar();
+}
+
+function sameProd(a,b){return !!(a&&b&&a.model===b.model&&a.brand===b.brand)}
+function selectedIndex(p){return slots.findIndex(s=>sameProd(s,p))}
+function toggleProd(pid,fromBudget){
+  const p=PMAP[pid];if(!p)return;
+  const idx=selectedIndex(p);
+  if(idx>=0){removeSlot(idx);toast('Đã bỏ khỏi so sánh');return}
+  pickProd(pid,fromBudget);
+}
+function renderQuickbar(){
+  const qb=document.getElementById('quickbar');if(!qb)return;
+  const f=slots.map((p,i)=>p?{p,i}:null).filter(Boolean);
+  qb.classList.toggle('on',f.length>0);
+  const title=document.getElementById('qb-title');if(title)title.textContent='Đang so sánh '+f.length+'/3';
+  const list=document.getElementById('qb-list');if(!list)return;
+  list.innerHTML=f.map(x=>'<div class="qb-item"><div class="qb-name">'+esc(x.p.brand+' '+x.p.model)+'</div><button class="qb-x" data-slot="'+x.i+'" aria-label="Bỏ sản phẩm">×</button></div>').join('');
 }
 
 // ── PICK ──────────────────────────────────────────
@@ -766,13 +809,14 @@ function renderGrid(){
   res.forEach(p=>{
     const sel=slots.some(s=>s&&s.model===p.model&&s.brand===p.brand);
     const pid=storeP(p);
-    h+='<div class="card'+(sel?' on':'')+'" data-pid="'+pid+'" data-action="pick">'
+    h+='<div class="card'+(sel?' on':'')+'" data-pid="'+pid+'">'
       +'<div class="card-c">'+esc(p.cat)+'</div>'
       +'<div class="card-b">'+esc(p.brand)+'</div>'
       +'<div class="card-m">'+esc(p.model)+'</div>'
       +'<div class="card-p">'+fmt(p.price)+'</div>'
       +'<div class="card-s">'+esc(p.segment)+'</div>'
       +'<div class="card-u">'+esc(p.usp)+'</div>'
+      +'<div class="card-actions"><button class="card-pick-btn '+(sel?'remove':'add')+'" data-action="toggle-pick" data-pid="'+pid+'">'+(sel?'✓ Đã chọn — bấm bỏ':'＋ Thêm so sánh')+'</button></div>'
       +'</div>';
   });
   grid.innerHTML=h;
@@ -800,7 +844,8 @@ function renderBGrid(){
     const dl=Math.abs(diff)<500000?'Đúng giá':diff>0?'+'+fmtM(diff):'-'+fmtM(-diff);
     const dc=Math.abs(diff)<500000?'var(--grn)':diff>0?'var(--org)':'var(--grn)';
     const pid=storeP(p);
-    h+='<div class="card" data-pid="'+pid+'" data-action="pick-budget">'
+    const sel=slots.some(s=>s&&s.model===p.model&&s.brand===p.brand);
+    h+='<div class="card'+(sel?' on':'')+'" data-pid="'+pid+'">'
       +'<div class="bdg" style="background:'+dc+'">'+esc(dl)+'</div>'
       +'<div class="card-c">'+esc(p.cat)+'</div>'
       +'<div class="card-b">'+esc(p.brand)+'</div>'
@@ -808,6 +853,7 @@ function renderBGrid(){
       +'<div class="card-p">'+fmt(p.price)+'</div>'
       +'<div class="card-s">'+esc(p.segment)+'</div>'
       +'<div class="card-u">'+esc(p.usp)+'</div>'
+      +'<div class="card-actions"><button class="card-pick-btn '+(sel?'remove':'add')+'" data-action="toggle-budget" data-pid="'+pid+'">'+(sel?'✓ Đã chọn — bấm bỏ':'＋ Thêm so sánh')+'</button></div>'
       +'</div>';
   });
   grid.innerHTML=h;
@@ -1081,22 +1127,37 @@ function initEvents(){
     btn.classList.add('on');aCat=btn.dataset.catk;renderGrid();
   });
 
-  // ── COMPARE GRID delegation (card click + delete) ──
-  function handleCardTap(grid,fromBudget){
+  // ── COMPARE GRID delegation — chỉ nút mới chọn/bỏ, lướt card không chọn nhầm ──
+  function handlePickButton(fromBudget){
     return function(e){
-      const card=e.target.closest('.card');if(!card)return;
-      const pid=card.dataset.pid;if(!pid)return;
+      const btn=e.target.closest('[data-action="toggle-pick"],[data-action="toggle-budget"]');
+      if(!btn)return;
       e.preventDefault();
-      pickProd(pid,fromBudget);
+      e.stopPropagation();
+      const pid=btn.dataset.pid;
+      if(pid)toggleProd(pid,fromBudget);
     };
   }
   const cmpGrid=document.getElementById('cmpgrid');
-  cmpGrid.addEventListener('touchend',handleCardTap(cmpGrid,false),{passive:false});
-  cmpGrid.addEventListener('click',handleCardTap(cmpGrid,false));
+  cmpGrid.addEventListener('click',handlePickButton(false));
 
   const bGrid=document.getElementById('bgrid');
-  bGrid.addEventListener('touchend',handleCardTap(bGrid,true),{passive:false});
-  bGrid.addEventListener('click',handleCardTap(bGrid,true));
+  bGrid.addEventListener('click',handlePickButton(true));
+
+  // ── QUICKBAR remove / clear — thao tác nhanh ở cuối màn hình ──
+  const quickbar=document.getElementById('quickbar');
+  if(quickbar){
+    quickbar.addEventListener('click',function(e){
+      const clear=e.target.closest('#qb-clear');
+      if(clear){e.preventDefault();e.stopPropagation();clearAll();return}
+      const x=e.target.closest('.qb-x');
+      if(x){
+        e.preventDefault();e.stopPropagation();
+        const i=parseInt(x.dataset.slot,10);
+        if(!isNaN(i)){removeSlot(i);toast('Đã bỏ khỏi so sánh')}
+      }
+    });
+  }
 
   // ── BUDGET ──
   document.getElementById('bamt').addEventListener('input',()=>{bPreset=null;syncPresets();renderBGrid()});
