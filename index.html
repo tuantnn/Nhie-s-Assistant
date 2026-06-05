@@ -202,6 +202,36 @@ body{font-family:'Be Vietnam Pro',system-ui,-apple-system,sans-serif;background:
 ::-webkit-scrollbar{width:3px;height:3px}
 ::-webkit-scrollbar-track{background:transparent}
 ::-webkit-scrollbar-thumb{background:var(--bdr);border-radius:2px}
+
+/* Mobile KB / Tra Cứu usability fixes */
+.nav{min-width:0;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none;flex-wrap:nowrap}
+.nav::-webkit-scrollbar{display:none}
+.ntab{flex:0 0 auto;touch-action:manipulation}
+.kb-hdr{touch-action:manipulation;user-select:none;-webkit-user-select:none}
+.kb-body2{overflow-x:auto;-webkit-overflow-scrolling:touch}
+#kb-search{touch-action:manipulation}
+@media(max-width:768px){
+  .hdr{overflow:hidden}
+  .logo{flex:0 0 auto;max-width:128px;overflow:hidden;text-overflow:ellipsis}
+  .nav{flex:1;justify-content:flex-start;padding-left:2px}
+  .ntab{padding:7px 9px;font-size:11px}
+  #pg-kb{padding-left:10px;padding-right:10px}
+  #pg-kb .srow{position:sticky;top:48px;z-index:190;background:var(--bg);padding:8px 0 7px;margin-bottom:8px}
+  #kb-cats{display:flex!important;flex-wrap:nowrap!important;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none;margin-left:-2px;margin-right:-2px;padding:0 2px 5px}
+  #kb-cats::-webkit-scrollbar{display:none}
+  #kb-cats .ccat{flex:0 0 auto;padding:7px 12px;font-size:11px}
+  .kb-sec{border-radius:12px;margin-bottom:8px}
+  .kb-hdr{padding:13px 12px;font-size:12px;gap:10px}
+  .kb-body2{padding:10px 10px 12px}
+  .kbt{min-width:560px;font-size:11px}
+  .kbt th,.kbt td{padding:7px 8px}
+  .kbn,.kbhl{font-size:11px}
+}
+@media(max-width:380px){
+  .logo{max-width:105px}
+  .ntab{padding:6px 8px;font-size:10.5px}
+}
+
 </style>
 </head>
 <body>
@@ -754,6 +784,7 @@ function buildShareText(){
 function goPage(id){
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('on'));
   document.getElementById('pg-'+id).classList.add('on');
+  if(id==='kb') setTimeout(()=>window.scrollTo({top:0,behavior:'smooth'}),0);
   document.getElementById('t-cmp').classList.toggle('on',id==='compare');
   document.getElementById('t-bud').classList.toggle('on',id==='budget');
   const tkb=document.getElementById('t-kb');if(tkb)tkb.classList.toggle('on',id==='kb');
@@ -1191,9 +1222,10 @@ function renderKB(q){
     return ql.split(' ').every(tok=>hay.includes(tok));
   });
   if(!res.length){body.innerHTML='<div class="empty" style="grid-column:unset"><div class="ico">📚</div><p>Không tìm thấy</p></div>';return}
+  const openByDefault = ql.length > 0 || window.innerWidth > 768;
   body.innerHTML=res.map(k=>`
-    <div class="kb-sec open">
-      <div class="kb-hdr"><span>${k.title}</span><span class="arr">▼</span></div>
+    <div class="kb-sec ${openByDefault ? 'open' : ''}">
+      <div class="kb-hdr" role="button" tabindex="0" aria-expanded="${openByDefault ? 'true' : 'false'}"><span>${k.title}</span><span class="arr">▼</span></div>
       <div class="kb-body2">
         ${k.secs.map((s,i)=>`
           <div style="margin-bottom:${i<k.secs.length-1?'14px':'0'}">
@@ -1203,7 +1235,13 @@ function renderKB(q){
       </div>
     </div>`).join('');
   body.querySelectorAll('.kb-hdr').forEach(h=>{
-    h.addEventListener('click',()=>h.closest('.kb-sec').classList.toggle('open'));
+    const toggle=()=>{
+      const sec=h.closest('.kb-sec');
+      const isOpen=sec.classList.toggle('open');
+      h.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
+    };
+    h.addEventListener('click',toggle,{passive:true});
+    h.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();toggle();}});
   });
 }
 
