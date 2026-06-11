@@ -6,6 +6,14 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black">
 <title>Trợ Lý Của Nhie — UX v5</title>
+<script>
+(function(){
+  try{
+    var saved=localStorage.getItem('nhi-theme');
+    document.documentElement.dataset.theme=saved==='light'?'light':'dark';
+  }catch(e){document.documentElement.dataset.theme='dark'}
+})();
+</script>
 <link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
 <style>
 :root{
@@ -13,6 +21,19 @@
   --bdr:#2a2a38;--acc:#4f6ef7;--grn:#10b981;--org:#f59e0b;--red:#ef4444;
   --txt:#e8e8f0;--mut:#6b6b8a;--hl:rgba(79,110,247,.12);
 }
+html[data-theme="light"]{
+  --bg:#f6f7fb;--sur:#ffffff;--s2:#f1f4f9;--s3:#e8edf5;
+  --bdr:#d8deea;--acc:#3159d9;--grn:#047857;--org:#b45309;--red:#dc2626;
+  --txt:#111827;--mut:#667085;--hl:rgba(49,89,217,.11);
+}
+body,.hdr,.card,.ccat,.sbtn,.actbtn,.modal,.share-card,.adv-res,.adv-item,.quickbar,.cmpwrap,input,select,button{transition:background-color .18s,border-color .18s,color .18s,box-shadow .18s}
+.theme-toggle{padding:6px 10px;border-radius:8px;font-size:12px;font-weight:700;cursor:pointer;border:1px solid var(--bdr);background:var(--s2);color:var(--txt);font-family:inherit;white-space:nowrap;-webkit-appearance:none;touch-action:manipulation}
+.theme-toggle:hover{border-color:var(--acc);color:var(--acc)}
+html[data-theme="light"] .quickbar{background:rgba(255,255,255,.96);box-shadow:0 14px 45px rgba(15,23,42,.16)}
+html[data-theme="light"] .sgst{box-shadow:0 12px 34px rgba(15,23,42,.16)}
+html[data-theme="light"] .modal-bg{background:rgba(15,23,42,.45)}
+html[data-theme="light"] .bsel option{background:#ffffff;color:#111827}
+
 *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
 body{font-family:'Be Vietnam Pro',system-ui,-apple-system,sans-serif;background:var(--bg);color:var(--txt);min-height:100vh;overflow-x:hidden}
 
@@ -198,6 +219,7 @@ body{font-family:'Be Vietnam Pro',system-ui,-apple-system,sans-serif;background:
   .bi{width:130px}
   .bsel{min-width:145px}
   .ntab{padding:6px 9px;font-size:11px}
+  .theme-toggle{padding:6px 8px;font-size:11px}
   .actbtn{padding:7px 10px;font-size:11px}
 }
 @media(max-width:380px){
@@ -269,6 +291,7 @@ body{font-family:'Be Vietnam Pro',system-ui,-apple-system,sans-serif;background:
     <button class="ntab" id="t-bud">💰 Theo Giá</button>
     <button class="ntab" id="t-adv">🎯 Gợi Ý</button>
     <button class="ntab" id="t-kb">📚 Tra Cứu</button>
+    <button class="theme-toggle" id="theme-toggle" type="button" aria-label="Đổi giao diện" aria-pressed="false">🌙 Tối</button>
   </div>
 </div>
 
@@ -1028,6 +1051,21 @@ function buildShareText(){
   return lines.join('\n');
 }
 
+
+function currentTheme(){return document.documentElement.dataset.theme==='light'?'light':'dark'}
+function applyTheme(theme){
+  const mode=theme==='light'?'light':'dark';
+  document.documentElement.dataset.theme=mode;
+  try{localStorage.setItem('nhi-theme',mode)}catch(e){}
+  const btn=document.getElementById('theme-toggle');
+  if(btn){btn.textContent=mode==='light'?'☀️ Sáng':'🌙 Tối';btn.setAttribute('aria-pressed',mode==='light'?'true':'false')}
+}
+function initTheme(){
+  applyTheme(currentTheme());
+  const btn=document.getElementById('theme-toggle');
+  if(btn)btn.addEventListener('click',()=>applyTheme(currentTheme()==='light'?'dark':'light'));
+}
+
 // ── PAGE NAV ──────────────────────────────────────
 function goPage(id){
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('on'));
@@ -1035,13 +1073,18 @@ function goPage(id){
   if(id==='kb') setTimeout(()=>window.scrollTo({top:0,behavior:'smooth'}),0);
   document.getElementById('t-cmp').classList.toggle('on',id==='compare');
   document.getElementById('t-bud').classList.toggle('on',id==='budget');
+  const tadv=document.getElementById('t-adv');if(tadv)tadv.classList.remove('on');
   const tkb=document.getElementById('t-kb');if(tkb)tkb.classList.toggle('on',id==='kb');
 }
 function openAdv(){
   advAns={};advResultPids=[];renderAdv();
+  const tadv=document.getElementById('t-adv');if(tadv)tadv.classList.add('on');
   document.getElementById('adv-modal').classList.add('on');
 }
-function closeModal(id){document.getElementById(id).classList.remove('on')}
+function closeModal(id){
+  const el=document.getElementById(id);if(el)el.classList.remove('on');
+  if(id==='adv-modal'){const tadv=document.getElementById('t-adv');if(tadv)tadv.classList.remove('on')}
+}
 
 // ── BUDGET INIT ───────────────────────────────────
 const PRESETS=[2e6,5e6,8e6,10e6,15e6,20e6,25e6,30e6];
@@ -1511,6 +1554,7 @@ function renderKB(q){
 // ── INIT ──────────────────────────────────────────
 buildCats('cats-cmp');
 renderTable();renderGrid();syncUI();
+initTheme();
 initBudget();
 initEvents();
 initKB();
